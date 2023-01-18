@@ -43,13 +43,13 @@ unsigned long get_grind_time(int page)
 }
 
 // update remaining grind time
-unsigned long update_remaining_grind_time(boolean grindActive, unsigned long lastUpdate, unsigned long grindTime)
+void update_remaining_grind_time(boolean grindActive, unsigned long lastUpdate, unsigned long* grindTime)
 {
   if (grindActive)
   {
-    grindTime = grindTime - (millis() - lastUpdate);
+    *grindTime = *grindTime - (millis() - lastUpdate);
   }
-  return grindTime;
+  //return *grindTime;
 }
 
 void setup(void) {
@@ -125,7 +125,7 @@ void loop(void) {
       lastPageDownPin = pageDownPinState;
     }
     // calculate remaining grind time
-    remainingGrindTime = update_remaining_grind_time(grinding, lastPinUpdate, remainingGrindTime);
+    update_remaining_grind_time(grinding, lastPinUpdate, &remainingGrindTime);
     // reset grind time if time elapsed and update page
     if (1000000 < remainingGrindTime)
     {
