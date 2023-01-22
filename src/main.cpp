@@ -1,7 +1,16 @@
 #include "screen.h"
+#include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
+#include "credentials.h"
 
 // Debug flag
 #define DEBUG
+
+// WiFi credentials
+const char* ssid = STASSID;
+const char* password = STAPSK;
 
 // Grinding times in ms
 #define SINGLE_SHOT_TIME 10000
@@ -29,6 +38,55 @@ boolean lastPageDownPin = false;
 // current screen
 int currentPage = 0;
 
+void OTA_init()
+{
+    // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+
+  // Hostname defaults to esp8266-[ChipID]
+  // ArduinoOTA.setHostname("myesp8266");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword("admin");
+
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+    } else {  // U_FS
+      type = "filesystem";
+    }
+
+    // NOTE: if updating FS this would be the place to unmount FS using FS.end()
+    Serial.println("Start updating " + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) {
+      Serial.println("Auth Failed");
+    } else if (error == OTA_BEGIN_ERROR) {
+      Serial.println("Begin Failed");
+    } else if (error == OTA_CONNECT_ERROR) {
+      Serial.println("Connect Failed");
+    } else if (error == OTA_RECEIVE_ERROR) {
+      Serial.println("Receive Failed");
+    } else if (error == OTA_END_ERROR) {
+      Serial.println("End Failed");
+    }
+  });
+  ArduinoOTA.begin();
+}
+
 // get grinding time for current page
 unsigned long get_grind_time(int page)
 {
@@ -53,23 +111,33 @@ void update_remaining_grind_time(boolean grindActive, unsigned long lastUpdate, 
 }
 
 void setup(void) {
+    // serial init
+  Serial.begin(115200);
+  Serial.println();
+  Serial.println("Booting ...");
+
   // pin init
   pinMode(D5, INPUT_PULLUP); // grinding request
   pinMode(D6, INPUT_PULLUP); // page up
   pinMode(D7, INPUT_PULLUP); // page down
-  pinMode(D3, OUTPUT);  // grinding output
+  pinMode(D8, OUTPUT);  // grinding output
 
   // init display
   init_screen();
 
-  // serial init
-  #ifdef DEBUG
-  Serial.begin(115200);
-  Serial.println();
-  Serial.println("Setup completed ...");
-  #endif
+  // start WIFI and connect
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Serial.println("Connection Failed! Rebooting...");
+    delay(5000);
+    ESP.restart();
+  }
 
-  delay(3000);
+  // start OTA
+  OTA_init();
+
+  while (3000 > millis()) {};
 
   // first page
   currentPage = 0;
@@ -79,9 +147,17 @@ void setup(void) {
   lastScreenRedraw = millis();
   lastScreenUpdate = lastScreenRedraw;
   lastPinUpdate = millis();
+
+  // summary
+  Serial.println("Ready");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void loop(void) {
+  // handle OTA
+  ArduinoOTA.handle();
+
   // Pin update
   if (millis() - lastPinUpdate > PIN_INTERVAL)
   {
@@ -140,7 +216,7 @@ void loop(void) {
       remainingGrindTime = get_grind_time(currentPage);
     }
     // set grinding pin
-    digitalWrite(D3, grinding);
+    digitalWrite(D8, grinding);
     lastPinUpdate = millis();
   }
 
