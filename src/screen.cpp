@@ -233,8 +233,8 @@ void draw_page(int page, boolean grinding, unsigned long time)
   */
 
   // action description
-  u8g2.setFont(u8g2_font_amstrad_cpc_extended_8f);
-  u8g2.drawStr(40, 30, "Restzeit");
+  //u8g2.setFont(u8g2_font_amstrad_cpc_extended_8f);
+  //u8g2.drawStr(40, 30, "Restzeit");
 
   u8g2.sendBuffer();
   delay(10);

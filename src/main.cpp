@@ -6,15 +6,17 @@
 #include "credentials.h"
 
 // Debug flag
+#ifndef DEBUG
 #define DEBUG
+#endif
 
 // WiFi credentials
 const char* ssid = STASSID;
 const char* password = STAPSK;
 
 // Grinding times in ms
-#define SINGLE_SHOT_TIME 10000
-#define DOUBLE_SHOT_TIME 11100
+#define SINGLE_SHOT_TIME 8800
+#define DOUBLE_SHOT_TIME 14300
 
 // Update intervalls in ms
 #define PIN_INTERVAL 10
