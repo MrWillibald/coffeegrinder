@@ -15,12 +15,16 @@ const char* ssid = STASSID;
 const char* password = STAPSK;
 
 // Grinding times in ms
-#define SINGLE_SHOT_TIME 8800
-#define DOUBLE_SHOT_TIME 14300
+#define SINGLE_SHOT_TIME 8700
+#define DOUBLE_SHOT_TIME 12600
 
 // Update intervalls in ms
 #define PIN_INTERVAL 10
 #define SCREEN_INTERVAL 80
+
+// define first and last page
+#define FIRST_PAGE 0
+#define LAST_PAGE 1
 
 // update timestamps
 unsigned long lastPinUpdate = 0;
@@ -39,6 +43,16 @@ boolean lastPageDownPin = false;
 
 // current screen
 int currentPage = 0;
+
+// current state
+struct
+{
+  boolean grinding = false;
+  boolean programming = false;
+  byte page = 0;
+  unsigned long time = 0;
+} state;
+
 
 void OTA_init()
 {
@@ -108,6 +122,16 @@ void update_remaining_grind_time(boolean grindActive, unsigned long lastUpdate, 
   if (grindActive)
   {
     *grindTime = *grindTime - (millis() - lastUpdate);
+  }
+  //return *grindTime;
+}
+
+// update new grind time
+void update_new_grind_time(boolean grindActive, unsigned long lastUpdate, unsigned long* grindTime)
+{
+  if (grindActive)
+  {
+    *grindTime = *grindTime + (millis() - lastUpdate);
   }
   //return *grindTime;
 }
@@ -217,6 +241,30 @@ void loop(void) {
       doScreenRedraw = true;
       remainingGrindTime = get_grind_time(currentPage);
     }
+
+    // update state diagram
+    if (grindPinState && not pageUpPinState && not pageDownPinState)
+    {
+      state.grinding = true;
+      state.programming = false;
+      state.time = state.time - (millis() - lastPinUpdate);
+    }
+    else if ((grindPinState && pageUpPinState && not pageDownPinState) ||
+      (grindPinState && not pageUpPinState && pageDownPinState))
+    {
+      state.grinding = true;
+      state.programming = true;
+      state.time = state.time + (millis() - lastPinUpdate);
+    }
+    else if (not grindPinState && not pageUpPinState && not pageDownPinState && lastPageUpPin)
+    {
+      (LAST_PAGE == state.page) ? state.page = FIRST_PAGE : state.page++;
+    }
+    else if (not grindPinState && not pageUpPinState && not pageDownPinState && lastPageDownPin)
+    {
+      (FIRST_PAGE == state.page) ? state.page = LAST_PAGE : state.page--;
+    }
+
     // set grinding pin
     digitalWrite(D8, grinding);
     lastPinUpdate = millis();
