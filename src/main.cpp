@@ -6,12 +6,12 @@
 #include "screen.h"
 #include "credentials.h"
 
-/*
+
 // Debug flag
-#ifndef DEBUG
+//#define MAN_DEBUG
+#ifdef MAN_DEBUG
 #define DEBUG
 #endif
-*/
 
 // WiFi credentials
 const char *ssid = STASSID;
