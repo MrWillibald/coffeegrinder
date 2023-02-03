@@ -250,6 +250,7 @@ void loop(void)
       state.updateScreen = true;
       if (100000 < state.time)
       {
+        // stop grinding when time is over
         state.time = 0;
         state.grinding = false;
         state.updateScreen = false;
@@ -308,7 +309,7 @@ void loop(void)
       state.updateScreen = false;
     }
     // Screen update
-    else
+    else if (state.updateScreen)
     {
       update_page(state.page, state.grinding, state.time);
 #ifdef DEBUG

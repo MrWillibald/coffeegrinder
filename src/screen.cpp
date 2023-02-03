@@ -7,6 +7,9 @@
 #include <Wire.h>
 #endif
 
+#ifndef AUTO_VERSION
+#define AUTO_VERSION "invalid"
+#endif
 /*
   U8g2lib Example Overview:
     Frame Buffer Examples: clearBuffer/sendBuffer. Fast, but may not work with all Arduino boards because of RAM consumption
@@ -123,7 +126,9 @@ void init_screen()
 
   // splash logo
   u8g2.clearBuffer();
-  u8g2.drawXBMP(4,2, lelit_logo_119x60_width, lelit_logo_119x60_height, lelit_logo_119x60_bits);
+  u8g2.drawXBMP(4,0, lelit_logo_119x60_width, lelit_logo_119x60_height, lelit_logo_119x60_bits);
+  u8g2.setFont(u8g2_font_amstrad_cpc_extended_8f);
+  u8g2.drawStr(20, 64, AUTO_VERSION);
   u8g2.sendBuffer();
   delay(10);
 }
