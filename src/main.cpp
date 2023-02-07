@@ -199,8 +199,9 @@ void loop(void)
     boolean pageDownPinState = not digitalRead(D7);
 
     // update state diagram
-    if ((grindPinState && not state.lastGrindPin && pageUpPinState && not pageDownPinState) ||
-        (grindPinState && not state.lastGrindPin && not pageUpPinState && pageDownPinState))
+    if (((grindPinState && not state.lastGrindPin && pageUpPinState && not pageDownPinState) ||
+        (grindPinState && not state.lastGrindPin && not pageUpPinState && pageDownPinState)) && 
+        not state.programming)
     {
       // inititate programming mode
       state.programming = true;
