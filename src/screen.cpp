@@ -109,7 +109,8 @@ void init_screen()
   u8g2.clearBuffer();
   u8g2.drawXBMP(15,0, lelit_logo_98x50_width, lelit_logo_98x50_height, lelit_logo_98x50_bits);
   u8g2.setFont(u8g2_font_amstrad_cpc_extended_8f);
-  u8g2.drawStr(0, 64, AUTO_VERSION);
+  //u8g2.drawStr(0, 64, AUTO_VERSION);
+  u8g2.drawButtonUTF8(0, 55, U8G2_BTN_HCENTER|U8G2_BTN_BW0, 128,  1,  1, AUTO_VERSION);
   u8g2.sendBuffer();
   delay(10);
 }

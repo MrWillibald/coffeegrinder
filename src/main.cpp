@@ -23,7 +23,7 @@ const char *password = STAPSK;
 typedef struct
 {
   unsigned long singleShot = SINGLE_SHOT_TIME;
-  unsigned long doubleShout = DOUBLE_SHOT_TIME;
+  unsigned long doubleShot = DOUBLE_SHOT_TIME;
 } TShotTimes;
 TShotTimes times;
 
@@ -72,7 +72,7 @@ void OTA_init()
   // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
 
   ArduinoOTA.onStart([]()
-                     {
+  {
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH) {
       type = "sketch";
@@ -81,13 +81,13 @@ void OTA_init()
     }
 
     // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-    Serial.println("Start updating " + type); });
-  ArduinoOTA.onEnd([]()
-                   { Serial.println("\nEnd"); });
+    Serial.println("Start updating " + type); 
+  });
+  ArduinoOTA.onEnd([](){ Serial.println("\nEnd"); });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
                         { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); });
   ArduinoOTA.onError([](ota_error_t error)
-                     {
+  {
     Serial.printf("Error[%u]: ", error);
     if (error == OTA_AUTH_ERROR) {
       Serial.println("Auth Failed");
@@ -99,7 +99,8 @@ void OTA_init()
       Serial.println("Receive Failed");      state.updateScreen = false;
     } else if (error == OTA_END_ERROR) {
       Serial.println("End Failed");
-    } });
+    } 
+  });
   ArduinoOTA.begin();
 }
 
@@ -113,7 +114,7 @@ unsigned long get_grind_time(int page)
     grindTime = times.singleShot;
     break;
   case LAST_PAGE:
-    grindTime = times.doubleShout;
+    grindTime = times.doubleShot;
     break;
   default:
     break;
@@ -217,7 +218,7 @@ void loop(void)
         times.singleShot = state.time;
         break;
       case LAST_PAGE:
-        times.doubleShout = state.time;
+        times.doubleShot = state.time;
         break;
       default:
         break;
