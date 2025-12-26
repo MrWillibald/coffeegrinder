@@ -2,6 +2,7 @@
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <PubSubClient.h>
 #include <EEPROM.h>
 #include "screen.h"
 #include "credentials.h"
@@ -16,6 +17,13 @@
 // WiFi credentials
 const char *ssid = STASSID;
 const char *password = STAPSK;
+WiFiClient espClient;
+
+// MQTT settings
+const char *host = MQTTHOST;
+const char *topic = MQTTTOPIC;
+const int port = MQTTPORT;
+PubSubClient mqttClient(espClient);
 
 // Grinding times in ms
 #define SINGLE_SHOT_TIME 6300
@@ -55,6 +63,18 @@ typedef struct
   boolean lastPageDownPin = false;
 } TState;
 TState state;
+
+void WIFI_init()
+{
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.waitForConnectResult() != WL_CONNECTED)
+  {
+    Serial.println("Connection Failed! Rebooting...");
+    delay(5000);
+    ESP.restart();
+  }
+}
 
 void OTA_init()
 {
@@ -102,6 +122,26 @@ void OTA_init()
     } 
   });
   ArduinoOTA.begin();
+}
+
+// Init MQTT subscription
+void MQTT_init()
+{
+    while (!mqttClient.connected()) {
+        String client_id = "esp8266-client-" + String(WiFi.macAddress());
+        Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
+        if (mqttClient.connect(client_id.c_str(), "", "")) {
+            Serial.println("Connected to MQTT broker");
+            mqttClient.subscribe(topic);
+            // Publish message upon successful connection
+            mqttClient.publish(topic, "Hi EMQX I'm ESP8266 ^^");
+        } else {
+            Serial.print("Failed to connect to MQTT broker, rc=");
+            Serial.print(mqttClient.state());
+            Serial.println(" try again in 5 seconds");
+            delay(5000);
+        }
+    }
 }
 
 // get grinding time for current page
@@ -153,17 +193,13 @@ void setup(void)
   init_screen();
 
   // start WIFI and connect
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.waitForConnectResult() != WL_CONNECTED)
-  {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
-  }
+  WIFI_init();
 
   // start OTA
   OTA_init();
+
+  // start MQTT
+  MQTT_init();
 
   while (3000 > millis())
   {
