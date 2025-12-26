@@ -26,8 +26,8 @@ const int port = MQTTPORT;
 PubSubClient mqttClient(espClient);
 
 // Grinding times in ms
-#define SINGLE_SHOT_TIME 6300
-#define DOUBLE_SHOT_TIME 9300
+#define SINGLE_SHOT_TIME 9300
+#define DOUBLE_SHOT_TIME 13700
 typedef struct
 {
   unsigned long singleShot = SINGLE_SHOT_TIME;
@@ -338,8 +338,8 @@ void loop(void)
     {
       draw_page(state.page, state.grinding, state.time);
 #ifdef DEBUG
-      Serial.print("Redraw interval: ");
-      Serial.println(millis() - state.lastScreenRedraw);
+      // Serial.print("Redraw interval: ");
+      // Serial.println(millis() - state.lastScreenRedraw);
 #endif
       state.lastScreenRedraw = millis();
       state.lastScreenUpdate = state.lastScreenRedraw;
@@ -351,16 +351,16 @@ void loop(void)
     {
       update_page(state.page, state.grinding, state.time);
 #ifdef DEBUG
-      Serial.print("Update interval: ");
-      Serial.println(millis() - state.lastScreenRedraw);
+      // Serial.print("Update interval: ");
+      // Serial.println(millis() - state.lastScreenRedraw);
 #endif
       state.lastScreenUpdate = millis();
       state.updateScreen = false;
     }
 
 #ifdef DEBUG
-    Serial.print("Current grind time: ");
-    Serial.println(state.time);
+    // Serial.print("Current grind time: ");
+    // Serial.println(state.time);
 #endif
   }
 }
