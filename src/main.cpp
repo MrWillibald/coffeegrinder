@@ -137,7 +137,7 @@ void MQTT_init()
       mqttClient.subscribe(topic);
       // Publish message upon successful connection
       String messageTopic = String(topic) + "/message";
-      mqttClient.publish(messageTopic.c_str(), "Hi EMQX I'm ESP8266 ^^");
+      mqttClient.publish(messageTopic.c_str(), "Grinder connected");
     }
     else
     {
