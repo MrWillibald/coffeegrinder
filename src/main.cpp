@@ -7,9 +7,8 @@
 #include "screen.h"
 #include "credentials.h"
 
-
 // Debug flag
-//#define MAN_DEBUG
+// #define MAN_DEBUG
 #ifdef MAN_DEBUG
 #define DEBUG
 #endif
@@ -92,7 +91,7 @@ void OTA_init()
   // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
 
   ArduinoOTA.onStart([]()
-  {
+                     {
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH) {
       type = "sketch";
@@ -101,13 +100,13 @@ void OTA_init()
     }
 
     // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-    Serial.println("Start updating " + type); 
-  });
-  ArduinoOTA.onEnd([](){ Serial.println("\nEnd"); });
+    Serial.println("Start updating " + type); });
+  ArduinoOTA.onEnd([]()
+                   { Serial.println("\nEnd"); });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total)
                         { Serial.printf("Progress: %u%%\r", (progress / (total / 100))); });
   ArduinoOTA.onError([](ota_error_t error)
-  {
+                     {
     Serial.printf("Error[%u]: ", error);
     if (error == OTA_AUTH_ERROR) {
       Serial.println("Auth Failed");
@@ -119,29 +118,35 @@ void OTA_init()
       Serial.println("Receive Failed");      state.updateScreen = false;
     } else if (error == OTA_END_ERROR) {
       Serial.println("End Failed");
-    } 
-  });
+    } });
   ArduinoOTA.begin();
 }
 
 // Init MQTT subscription
 void MQTT_init()
 {
-    while (!mqttClient.connected()) {
-        String client_id = "esp8266-client-" + String(WiFi.macAddress());
-        Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
-        if (mqttClient.connect(client_id.c_str(), "", "")) {
-            Serial.println("Connected to MQTT broker");
-            mqttClient.subscribe(topic);
-            // Publish message upon successful connection
-            mqttClient.publish(topic, "Hi EMQX I'm ESP8266 ^^");
-        } else {
-            Serial.print("Failed to connect to MQTT broker, rc=");
-            Serial.print(mqttClient.state());
-            Serial.println(" try again in 5 seconds");
-            delay(5000);
-        }
+  mqttClient.setServer(host, port);
+  while (!mqttClient.connected())
+  {
+    // String client_id = "esp8266-client-" + String(WiFi.macAddress());
+    String client_id = "grinder";
+    Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
+    if (mqttClient.connect(client_id.c_str(), "", ""))
+    {
+      Serial.println("Connected to MQTT broker");
+      mqttClient.subscribe(topic);
+      // Publish message upon successful connection
+      String messageTopic = String(topic) + "/message";
+      mqttClient.publish(messageTopic.c_str(), "Hi EMQX I'm ESP8266 ^^");
     }
+    else
+    {
+      Serial.print("Failed to connect to MQTT broker, rc=");
+      Serial.print(mqttClient.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
+  }
 }
 
 // get grinding time for current page
@@ -237,7 +242,7 @@ void loop(void)
 
     // update state diagram
     if (((grindPinState && not state.lastGrindPin && pageUpPinState && not pageDownPinState) ||
-        (grindPinState && not state.lastGrindPin && not pageUpPinState && pageDownPinState)) && 
+         (grindPinState && not state.lastGrindPin && not pageUpPinState && pageDownPinState)) &&
         not state.programming)
     {
       // inititate programming mode
