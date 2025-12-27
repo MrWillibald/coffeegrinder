@@ -64,6 +64,44 @@ typedef struct
 } TState;
 TState state;
 
+// get grinding time for current page
+unsigned long get_grind_time(int page)
+{
+  unsigned long grindTime = 0;
+  switch (page)
+  {
+  case FIRST_PAGE:
+    grindTime = times.singleShot;
+    break;
+  case LAST_PAGE:
+    grindTime = times.doubleShot;
+    break;
+  default:
+    break;
+  }
+  return grindTime;
+}
+
+void page_change()
+{
+  state.time = get_grind_time(state.page);
+  state.redrawScreen = true;
+}
+
+void page_up()
+{
+  // page up
+  (LAST_PAGE == state.page) ? state.page = FIRST_PAGE : state.page++;
+  page_change(); 
+}
+
+void page_down()
+{
+  // page down
+  (FIRST_PAGE == state.page) ? state.page = LAST_PAGE : state.page--;
+  page_change();
+}
+
 // get MQTT subscription
 void mqtt_callback(char* topic, byte* payload, unsigned int length)
 {
@@ -84,6 +122,22 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length)
   // Publish received action on message subtopic
   String messageTopic = String(topic) + "/message";
   mqttClient.publish(messageTopic.c_str(), action);
+
+  // Handle received action
+  if (0 == strcmp(action, "rotate_right"))
+  {
+    state.time = state.time + 100;
+    state.updateScreen = true;
+  }
+  else if (0 == strcmp(action, "rotate_left"))
+  {
+    state.time = state.time - 100;
+    state.updateScreen = true;
+  }  
+  else if (0 == strcmp(action, "single"))
+  {
+    page_up();
+  }
 }
 
 void WIFI_init()
@@ -138,7 +192,7 @@ void OTA_init()
     } else if (error == OTA_CONNECT_ERROR) {
       Serial.println("Connect Failed");
     } else if (error == OTA_RECEIVE_ERROR) {
-      Serial.println("Receive Failed");      state.updateScreen = false;
+      Serial.println("Receive Failed");
     } else if (error == OTA_END_ERROR) {
       Serial.println("End Failed");
     } });
@@ -174,24 +228,6 @@ void MQTT_init()
 
   if (!mqttClient.connected())
     Serial.println("MQTT not connected, continue without MQTT!");
-}
-
-// get grinding time for current page
-unsigned long get_grind_time(int page)
-{
-  unsigned long grindTime = 0;
-  switch (page)
-  {
-  case FIRST_PAGE:
-    grindTime = times.singleShot;
-    break;
-  case LAST_PAGE:
-    grindTime = times.doubleShot;
-    break;
-  default:
-    break;
-  }
-  return grindTime;
 }
 
 void setup(void)
@@ -257,6 +293,10 @@ void loop(void)
 {
   // handle OTA
   ArduinoOTA.handle();
+
+  // handle MQTT
+  if (mqttClient.connected())
+    mqttClient.loop();
 
   // Pin update
   if (millis() - state.lastPinUpdate > PIN_INTERVAL)
@@ -329,19 +369,9 @@ void loop(void)
       }
     }
     else if (not state.grinding && not grindPinState && not pageUpPinState && not pageDownPinState && state.lastPageUpPin)
-    {
-      // page up
-      (LAST_PAGE == state.page) ? state.page = FIRST_PAGE : state.page++;
-      state.time = get_grind_time(state.page);
-      state.redrawScreen = true;
-    }
+      page_up();
     else if (not state.grinding && not grindPinState && not pageUpPinState && not pageDownPinState && state.lastPageDownPin)
-    {
-      // page down
-      (FIRST_PAGE == state.page) ? state.page = LAST_PAGE : state.page--;
-      state.time = get_grind_time(state.page);
-      state.redrawScreen = true;
-    }
+      page_down();
     else if (not grindPinState && state.lastGrindPin && (0 == state.time) && not state.programming && not pageUpPinState && not pageDownPinState)
     {
       state.time = get_grind_time(state.page);
