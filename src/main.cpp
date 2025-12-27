@@ -3,6 +3,7 @@
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 #include <EEPROM.h>
 #include "screen.h"
 #include "credentials.h"
@@ -62,6 +63,28 @@ typedef struct
   boolean lastPageDownPin = false;
 } TState;
 TState state;
+
+// get MQTT subscription
+void mqtt_callback(char* topic, byte* payload, unsigned int length)
+{
+  JsonDocument doc;
+
+  // Deserialize the JSON document
+  DeserializationError error = deserializeJson(doc, payload);
+
+  // Test if parsing succeeds
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  const char* action = doc["action"];
+
+  // Publish received action on message subtopic
+  String messageTopic = String(topic) + "/message";
+  mqttClient.publish(messageTopic.c_str(), action);
+}
 
 void WIFI_init()
 {
@@ -126,7 +149,7 @@ void OTA_init()
 void MQTT_init()
 {
   mqttClient.setServer(host, port);
-  while (!mqttClient.connected())
+  while (!mqttClient.connected() && (15000 > millis()))
   {
     // String client_id = "esp8266-client-" + String(WiFi.macAddress());
     String client_id = "grinder";
@@ -138,6 +161,7 @@ void MQTT_init()
       // Publish message upon successful connection
       String messageTopic = String(topic) + "/message";
       mqttClient.publish(messageTopic.c_str(), "Grinder connected");
+      mqttClient.setCallback(mqtt_callback);
     }
     else
     {
@@ -147,6 +171,9 @@ void MQTT_init()
       delay(5000);
     }
   }
+
+  if (!mqttClient.connected())
+    Serial.println("MQTT not connected, continue without MQTT!");
 }
 
 // get grinding time for current page
@@ -208,7 +235,8 @@ void setup(void)
 
   while (3000 > millis())
   {
-  };
+    // Show splash screen at least 3 seconds
+  }
 
   // first page
   state.page = FIRST_PAGE;
