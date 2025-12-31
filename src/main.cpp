@@ -20,12 +20,15 @@ const char *password = STAPSK;
 WiFiClient espClient;
 
 // MQTT settings
+#define MQTT_MSG_BUFF_SIZE 100
 const char *host = MQTTHOST;
 const char *topic = MQTTTOPIC;
 const int port = MQTTPORT;
 PubSubClient mqttClient(espClient);
 
 // Grinding times in ms
+#define EEPROM_SIZE 16
+#define EEPROM_ADDRESS 0
 #define SINGLE_SHOT_TIME 9300
 #define DOUBLE_SHOT_TIME 13700
 typedef struct
@@ -38,7 +41,7 @@ TShotTimes times;
 // Update intervalls in ms
 #define PIN_INTERVAL 10
 #define SCREEN_INTERVAL 80
-#define MQTT_INTERVAL 100
+#define MQTT_INTERVAL 2000
 
 // define first and last page
 #define FIRST_PAGE 0
@@ -65,11 +68,33 @@ typedef struct
   boolean lastPageDownPin = false;
   // MQTT state
   boolean mqttSubReceived = false;
-  char *mqttMessage = "";
+  char mqttMessage[MQTT_MSG_BUFF_SIZE];
 } TState;
 TState state;
 
-// get grinding time for current page
+// Save times to EEPROM
+void save_times(TShotTimes newTimes)
+{
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROM.put(EEPROM_ADDRESS, newTimes);
+  EEPROM.commit();
+  EEPROM.end();
+}
+
+// Get times from EEPROM
+TShotTimes get_times()
+{
+  TShotTimes savedTimes;
+
+  EEPROM.begin(EEPROM_SIZE);
+  EEPROM.get(EEPROM_ADDRESS, savedTimes);
+  EEPROM.commit();
+  EEPROM.end();
+
+  return savedTimes;
+}
+
+// Get grinding time for current page
 unsigned long get_grind_time(int page)
 {
   unsigned long grindTime = 0;
@@ -108,35 +133,34 @@ void page_down()
 }
 
 // get MQTT subscription
-void mqtt_callback(char *topic, byte *payload, unsigned int length)
+void mqtt_callback(char *inTopic, byte *payload, unsigned int length)
 {
-  state.mqttSubReceived = true;
-
-  // Prepare deserialization object
-  JsonDocument doc;
-
-  // Filter action and mode
-  JsonDocument filter;
-  filter["action"] = true;
-  filter["operation_mode"] = true;
-
-  // Deserialize the JSON document
-  DeserializationError error = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
-
-  // Test if parsing succeeds
-  if (error)
+  // handle different subscription topics
+  if (0 == strcmp(topic, inTopic))
   {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.f_str());
-    return;
-  }
+    // Drehknopf action received
+    state.mqttSubReceived = true;
 
-  const char *mode = doc["operation_mode"];
-  const char *action = doc["action"];
+    // Prepare deserialization object
+    JsonDocument doc;
 
-  // Handle operation mode
-  if (0 == strcmp(mode, "event"))
-  {
+    // Filter action
+    JsonDocument filter;
+    filter["action"] = true;
+
+    // Deserialize the JSON document
+    DeserializationError error = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
+
+    // Test if parsing succeeds
+    if (error)
+    {
+      Serial.print(F("deserializeJson() failed: "));
+      Serial.println(error.f_str());
+      return;
+    }
+
+    const char *action = doc["action"];
+
     // Handle received action
     if (0 == strcmp(action, "rotate_right"))
     {
@@ -152,11 +176,24 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
     {
       page_up();
     }
-    sprintf(state.mqttMessage, "Grind time: %dms, Page: %d", state.time, state.page);
-  }
-  else
-  {
-    sprintf(state.mqttMessage, "Wrong operation mode!");
+    else if (0 == strcmp(action, "double"))
+    {
+      // update times with current setting
+      switch (state.page)
+      {
+      case FIRST_PAGE:
+        times.singleShot = state.time;
+        break;
+      case LAST_PAGE:
+        times.doubleShot = state.time;
+        break;
+      default:
+        break;
+      }
+
+      // save times to EEPROM
+      save_times(times);
+    }
   }
 }
 
@@ -166,7 +203,7 @@ void WIFI_init()
   WiFi.begin(ssid, password);
   while (WiFi.waitForConnectResult() != WL_CONNECTED)
   {
-    Serial.println("Connection Failed! Rebooting...");
+    Serial.println(F("Connection Failed! Rebooting..."));
     delay(5000);
     ESP.restart();
   }
@@ -206,15 +243,15 @@ void OTA_init()
                      {
     Serial.printf("Error[%u]: ", error);
     if (error == OTA_AUTH_ERROR) {
-      Serial.println("Auth Failed");
+      Serial.println(F("Auth Failed"));
     } else if (error == OTA_BEGIN_ERROR) {
-      Serial.println("Begin Failed");
+      Serial.println(F("Begin Failed"));
     } else if (error == OTA_CONNECT_ERROR) {
-      Serial.println("Connect Failed");
+      Serial.println(F("Connect Failed"));
     } else if (error == OTA_RECEIVE_ERROR) {
-      Serial.println("Receive Failed");
+      Serial.println(F("Receive Failed"));
     } else if (error == OTA_END_ERROR) {
-      Serial.println("End Failed");
+      Serial.println(F("End Failed"));
     } });
   ArduinoOTA.begin();
 }
@@ -230,8 +267,9 @@ void MQTT_init()
     Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
     if (mqttClient.connect(client_id.c_str(), "", ""))
     {
-      Serial.println("Connected to MQTT broker");
+      Serial.println(F("Connected to MQTT broker"));
       mqttClient.subscribe(topic);
+      delay(10);
       // Publish message upon successful connection
       String messageTopic = String(topic) + "/message";
       mqttClient.publish(messageTopic.c_str(), "Grinder connected");
@@ -239,15 +277,15 @@ void MQTT_init()
     }
     else
     {
-      Serial.print("Failed to connect to MQTT broker, rc=");
+      Serial.print(F("Failed to connect to MQTT broker, rc="));
       Serial.print(mqttClient.state());
-      Serial.println(" try again in 5 seconds");
+      Serial.println(F(" try again in 5 seconds"));
       delay(5000);
     }
   }
 
   if (!mqttClient.connected())
-    Serial.println("MQTT not connected, continue without MQTT!");
+    Serial.println(F("MQTT not connected, continue without MQTT!"));
 }
 
 void setup(void)
@@ -255,21 +293,15 @@ void setup(void)
   // serial init
   Serial.begin(115200);
   Serial.println();
-  Serial.println("Booting ...");
+  Serial.println(F("Booting ..."));
 
 #ifdef DEBUG
   // put times to EEPROM
-  EEPROM.begin(16);
-  EEPROM.put(0, times);
-  EEPROM.commit();
-  EEPROM.end();
+  save_times(times);
 #endif
 
   // get times from EEPROM
-  EEPROM.begin(16);
-  EEPROM.get(0, times);
-  EEPROM.commit();
-  EEPROM.end();
+  times = get_times();
 
   // pin init
   pinMode(D5, INPUT_PULLUP); // grinding request
@@ -292,6 +324,7 @@ void setup(void)
   while (3000 > millis())
   {
     // Show splash screen at least 3 seconds
+    delay(50);
   }
 
   // first page
@@ -314,6 +347,13 @@ void loop(void)
 {
   // handle OTA
   ArduinoOTA.handle();
+
+  // handle MQTT
+  if (mqttClient.connected())
+  {
+    mqttClient.loop();
+    delay(10);
+  }
 
   // Pin update
   if (millis() - state.lastPinUpdate > PIN_INTERVAL)
@@ -350,10 +390,7 @@ void loop(void)
         break;
       }
       // write times to EEPROM
-      EEPROM.begin(16);
-      EEPROM.put(0, times);
-      EEPROM.commit();
-      EEPROM.end();
+      save_times(times);
 
       // redraw screen
       state.redrawScreen = true;
@@ -442,19 +479,5 @@ void loop(void)
     // Serial.print("Current grind time: ");
     // Serial.println(state.time);
 #endif
-  }
-
-  // handle MQTT
-  if (millis() - state.lastMqttUpdate > MQTT_INTERVAL)
-  {
-    if (mqttClient.connected())
-      mqttClient.loop();
-    // publish result
-    if (state.mqttSubReceived)
-    {
-      String messageTopic = String(topic) + "/message";
-      mqttClient.publish(messageTopic.c_str(), state.mqttMessage);
-      state.mqttSubReceived = false;
-    }
   }
 }
