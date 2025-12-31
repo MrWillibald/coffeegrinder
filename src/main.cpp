@@ -92,7 +92,7 @@ void page_up()
 {
   // page up
   (LAST_PAGE == state.page) ? state.page = FIRST_PAGE : state.page++;
-  page_change(); 
+  page_change();
 }
 
 void page_down()
@@ -103,40 +103,57 @@ void page_down()
 }
 
 // get MQTT subscription
-void mqtt_callback(char* topic, byte* payload, unsigned int length)
+void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
   JsonDocument doc;
 
+  // Filter action and mode
+  JsonDocument filter;
+  filter["action"] = true;
+  filter["operation_mode"] = true;
+
   // Deserialize the JSON document
-  DeserializationError error = deserializeJson(doc, payload);
+  DeserializationError error = deserializeJson(doc, payload, DeserializationOption::Filter(filter));
 
   // Test if parsing succeeds
-  if (error) {
+  if (error)
+  {
     Serial.print(F("deserializeJson() failed: "));
     Serial.println(error.f_str());
     return;
   }
 
-  const char* action = doc["action"];
+  const char *mode = doc["operation_mode"];
+  const char *action = doc["action"];
 
   // Publish received action on message subtopic
   String messageTopic = String(topic) + "/message";
-  mqttClient.publish(messageTopic.c_str(), action);
 
-  // Handle received action
-  if (0 == strcmp(action, "rotate_right"))
+  // Handle operation mode
+  if (0 == strcmp(mode, "event"))
   {
-    state.time = state.time + 100;
-    state.updateScreen = true;
+    // Handle received action
+    if (0 == strcmp(action, "rotate_right"))
+    {
+      state.time = state.time + 100;
+      state.updateScreen = true;
+      mqttClient.publish(messageTopic.c_str(), "Grinding time: " + state.time);
+    }
+    else if (0 == strcmp(action, "rotate_left"))
+    {
+      state.time = state.time - 100;
+      state.updateScreen = true;
+      mqttClient.publish(messageTopic.c_str(), "Grinding time: " + state.time);
+    }
+    else if (0 == strcmp(action, "single"))
+    {
+      page_up();
+      mqttClient.publish(messageTopic.c_str(), "Current page: " + state.page);
+    }
   }
-  else if (0 == strcmp(action, "rotate_left"))
+  else
   {
-    state.time = state.time - 100;
-    state.updateScreen = true;
-  }  
-  else if (0 == strcmp(action, "single"))
-  {
-    page_up();
+    mqttClient.publish(messageTopic.c_str(), "Wrong operation mode!");
   }
 }
 
