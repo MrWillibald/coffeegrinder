@@ -38,6 +38,7 @@ TShotTimes times;
 // Update intervalls in ms
 #define PIN_INTERVAL 10
 #define SCREEN_INTERVAL 80
+#define MQTT_INTERVAL 100
 
 // define first and last page
 #define FIRST_PAGE 0
@@ -57,13 +58,14 @@ typedef struct
   unsigned long lastPinUpdate = 0;
   unsigned long lastScreenUpdate = 0;
   unsigned long lastScreenRedraw = 0;
+  unsigned long lastMqttUpdate = 0;
   // input pin states
   boolean lastGrindPin = false;
   boolean lastPageUpPin = false;
   boolean lastPageDownPin = false;
   // MQTT state
   boolean mqttSubReceived = false;
-  char* mqttMessage = "";
+  char *mqttMessage = "";
 } TState;
 TState state;
 
@@ -300,6 +302,7 @@ void setup(void)
   state.lastScreenRedraw = now;
   state.lastScreenUpdate = now;
   state.lastPinUpdate = now;
+  state.lastMqttUpdate = now;
 
   // summary
   Serial.println("Ready");
@@ -311,17 +314,6 @@ void loop(void)
 {
   // handle OTA
   ArduinoOTA.handle();
-
-  // handle MQTT
-  if (mqttClient.connected())
-    mqttClient.loop();
-  // publish result
-  if (state.mqttSubReceived)
-  {
-    String messageTopic = String(topic) + "/message";
-    mqttClient.publish(messageTopic.c_str(), state.mqttMessage);
-    state.mqttSubReceived = false;
-  }
 
   // Pin update
   if (millis() - state.lastPinUpdate > PIN_INTERVAL)
@@ -450,5 +442,19 @@ void loop(void)
     // Serial.print("Current grind time: ");
     // Serial.println(state.time);
 #endif
+  }
+
+  // handle MQTT
+  if (millis() - state.lastMqttUpdate > MQTT_INTERVAL)
+  {
+    if (mqttClient.connected())
+      mqttClient.loop();
+    // publish result
+    if (state.mqttSubReceived)
+    {
+      String messageTopic = String(topic) + "/message";
+      mqttClient.publish(messageTopic.c_str(), state.mqttMessage);
+      state.mqttSubReceived = false;
+    }
   }
 }
