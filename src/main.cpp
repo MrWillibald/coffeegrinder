@@ -61,6 +61,9 @@ typedef struct
   boolean lastGrindPin = false;
   boolean lastPageUpPin = false;
   boolean lastPageDownPin = false;
+  // MQTT state
+  boolean mqttSubReceived = false;
+  char* mqttMessage = "";
 } TState;
 TState state;
 
@@ -105,6 +108,9 @@ void page_down()
 // get MQTT subscription
 void mqtt_callback(char *topic, byte *payload, unsigned int length)
 {
+  state.mqttSubReceived = true;
+
+  // Prepare deserialization object
   JsonDocument doc;
 
   // Filter action and mode
@@ -126,9 +132,6 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
   const char *mode = doc["operation_mode"];
   const char *action = doc["action"];
 
-  // Publish received action on message subtopic
-  String messageTopic = String(topic) + "/message";
-
   // Handle operation mode
   if (0 == strcmp(mode, "event"))
   {
@@ -137,23 +140,21 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length)
     {
       state.time = state.time + 100;
       state.updateScreen = true;
-      mqttClient.publish(messageTopic.c_str(), "Grinding time: " + state.time);
     }
     else if (0 == strcmp(action, "rotate_left"))
     {
       state.time = state.time - 100;
       state.updateScreen = true;
-      mqttClient.publish(messageTopic.c_str(), "Grinding time: " + state.time);
     }
     else if (0 == strcmp(action, "single"))
     {
       page_up();
-      mqttClient.publish(messageTopic.c_str(), "Current page: " + state.page);
     }
+    sprintf(state.mqttMessage, "Grind time: %dms, Page: %d", state.time, state.page);
   }
   else
   {
-    mqttClient.publish(messageTopic.c_str(), "Wrong operation mode!");
+    sprintf(state.mqttMessage, "Wrong operation mode!");
   }
 }
 
@@ -314,6 +315,13 @@ void loop(void)
   // handle MQTT
   if (mqttClient.connected())
     mqttClient.loop();
+  // publish result
+  if (state.mqttSubReceived)
+  {
+    String messageTopic = String(topic) + "/message";
+    mqttClient.publish(messageTopic.c_str(), state.mqttMessage);
+    state.mqttSubReceived = false;
+  }
 
   // Pin update
   if (millis() - state.lastPinUpdate > PIN_INTERVAL)
