@@ -256,36 +256,35 @@ void OTA_init()
   ArduinoOTA.begin();
 }
 
-// Init MQTT subscription
-void MQTT_init()
-{
-  mqttClient.setServer(host, port);
-  while (!mqttClient.connected() && (15000 > millis()))
-  {
-    // String client_id = "esp8266-client-" + String(WiFi.macAddress());
+// MQTT reconnection logic
+void reconnectMQTT() {
+  while (!mqttClient.connected()) {
+    Serial.println("Attempting MQTT connection...");
     String client_id = "grinder";
-    Serial.printf("Connecting to MQTT Broker as %s.....\n", client_id.c_str());
-    if (mqttClient.connect(client_id.c_str(), "", ""))
-    {
-      Serial.println(F("Connected to MQTT broker"));
+    if (mqttClient.connect(client_id.c_str(), "", "")) {
+      Serial.println("Connected to MQTT broker");
       mqttClient.subscribe(topic);
       delay(10);
       // Publish message upon successful connection
       String messageTopic = String(topic) + "/message";
       mqttClient.publish(messageTopic.c_str(), "Grinder connected");
       mqttClient.setCallback(mqtt_callback);
-    }
-    else
-    {
-      Serial.print(F("Failed to connect to MQTT broker, rc="));
+    } else {
+      Serial.print("Failed, rc=");
       Serial.print(mqttClient.state());
-      Serial.println(F(" try again in 5 seconds"));
+      Serial.println(" Retrying in 5 seconds...");
       delay(5000);
     }
   }
+}
 
-  if (!mqttClient.connected())
-    Serial.println(F("MQTT not connected, continue without MQTT!"));
+// Init MQTT subscription
+void MQTT_init()
+{
+  mqttClient.setServer(host, port);
+  
+  // Initial connection attempt
+  reconnectMQTT();
 }
 
 void setup(void)
@@ -348,11 +347,14 @@ void loop(void)
   // handle OTA
   ArduinoOTA.handle();
 
-  // handle MQTT
-  if (mqttClient.connected())
-  {
-    mqttClient.loop();
-    delay(10);
+  // handle MQTT in a non-blocking way
+  if (millis() - state.lastMqttUpdate > 100) {
+    if (!mqttClient.connected()) {
+      reconnectMQTT();
+    } else {
+      mqttClient.loop();
+    }
+    state.lastMqttUpdate = millis();
   }
 
   // Pin update
